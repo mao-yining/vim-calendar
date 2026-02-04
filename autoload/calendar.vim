@@ -43,17 +43,13 @@ if !exists("g:calendar_options")
   if has("+relativenumber") || exists("+relativenumber")
     g:calendar_options ..= " nornu"
   endif
-endif
-if !exists("g:calendar_filetype")
-  g:calendar_filetype = "markdown"
-endif
-if !exists("g:calendar_diary_extension")
-    g:calendar_diary_extension = ".md"
-endif
-if !exists("g:calendar_search_grepprg")
-  g:calendar_search_grepprg = "grep"
-endif
 
+endif
+g:calendar_filetype = get(g:, "calendar_filetype", "markdown")
+
+g:calendar_diary_extension = get(g:, "calendar_diary_extension", ".md")
+
+g:calendar_search_grepprg = get(g:, "calendar_search_grepprg", "grep")
 
 #*****************************************************************
 #* Default Calendar key bindings
@@ -932,24 +928,24 @@ export def Show(a1: number, a2: number = -1, a3: number = -1): string # TODO
 
     # or not
     if dir == 1
-      silent execute $"bo :{vheight}split __Calendar"
+      execute($"bo :{vheight}split __Calendar")
       setlocal winfixheight
     elseif dir == 0
-      silent execute $"to :{vcolumn}vsplit __Calendar"
+      execute($"to :{vcolumn}vsplit __Calendar")
       setlocal winfixwidth
     elseif dir == 3
-      silent execute $"bo :{vcolumn}vsplit __Calendar"
+      execute($"bo :{vcolumn}vsplit __Calendar")
       setlocal winfixwidth
     elseif bufname('%') == '' && !&modified
-      silent execute 'edit __Calendar'
+      execute('edit __Calendar')
     else
-      silent execute 'tabnew __Calendar'
+      execute('tabnew __Calendar')
     endif
     CalendarBuildKeymap(dir, vyear, vmnth)
     setlocal noswapfile
     setlocal buftype=nofile
     setlocal bufhidden=delete
-    silent! exe $"setlocal {g:calendar_options}"
+    silent! exe "setlocal" g:calendar_options
     var nontext_columns = &nu ? &foldcolumn + &numberwidth : &foldcolumn
     if has("+relativenumber") || exists("+relativenumber")
       nontext_columns += &rnu ? &numberwidth : 0
@@ -1101,29 +1097,6 @@ export def Show(a1: number, a2: number = -1, a3: number = -1): string # TODO
 enddef
 
 # #*****************************************************************
-# #* Make_dir : make directory
-# #*----------------------------------------------------------------
-# #*   dir : directory
-# #*****************************************************************
-def MakeDir(dir: string): number
-  var rc: number = 0
-  if (has("unix"))
-    system($"mkdir {dir}")
-    rc = v:shell_error
-  elseif (has("win16") || has("win32") || has("win95") ||
-      has("dos16") || has("dos32") || has("os2"))
-    system($"mkdir \"{dir}\"")
-    rc = v:shell_error
-  else
-    rc = 1
-  endif
-  if rc != 0
-    confirm($"can't create directory: {dir}", "&OK")
-  endif
-  return rc
-enddef
-
-# #*****************************************************************
 # #* diary : calendar hook function
 # #*----------------------------------------------------------------
 # #*   day   : day you actioned
@@ -1136,30 +1109,24 @@ def Diary(day: number, month: number, year: number, week: number, dir: string)
     confirm("please create diary directory: {g:calendar_diary}", 'OK')
     return
   endif
-  var sfile = $"{expand(g:calendar_diary)}/{printf("%04d", year)}"
-  if isdirectory(sfile) == 0
-    if MakeDir(sfile) != 0
-      return
-    endif
+  const sfile = $'{expand(g:calendar_diary)}/{printf("%04d-%02d-%02d", year, month, day)}{g:calendar_diary_extension}'
+  const sdir = sfile->fnamemodify(':p:h')
+  if !sdir->isdirectory() && !sdir->mkdir('p')
+	  return
   endif
-  sfile = $"{sfile}/{printf("%02d", month)}"
-  if isdirectory(sfile) == 0
-    if MakeDir(sfile) != 0
-      return
-    endif
-  endif
-  sfile = $'{expand(sfile)}/{printf("%02d", day)}{g:calendar_diary_extension}'
-  sfile = substitute(sfile, ' ', '\\ ', 'g')
-  var vbufnr = bufnr('__Calendar')
-
+  const vbufnr = bufnr('__Calendar')
   # load the file
-  exe "wincmd w"
-  exe $"edit  {sfile}"
-  exe $"setfiletype {g:calendar_filetype}"
-  var folder = getbufvar(vbufnr, "CalendarDir")
-  var vyear = getbufvar(vbufnr, "CalendarYear")
-  var vmnth = getbufvar(vbufnr, "CalendarMonth")
-  exe $"auto BufDelete {escape(sfile, ' \\')} Show({folder}, {vyear}, {vmnth})"
+  wincmd w
+  exe "edit" sfile
+  exe "setfiletype" g:calendar_filetype
+  const folder = vbufnr->getbufvar("CalendarDir")
+  const vyear = vbufnr->getbufvar("CalendarYear")
+  const vmnth = vbufnr->getbufvar("CalendarMonth")
+  autocmd_add([{
+	  replace: true,
+	  bufnr: bufnr(),
+	  cmd: $"Show({folder}, {vyear}, {vmnth})",
+	  event: 'BufDelete'}])
 enddef
 
 var CalendarAction = function("Diary")
